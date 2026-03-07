@@ -32,8 +32,25 @@ If these are blocked, configure **Network Access** in your Cloud Agent settings 
 - **Test with postgres containers**: `make start-test-containers` then `make test-load-local-postgres`
 - **Build**: `uv build`
 
+### Hello world verification
+After `make dev`, verify the environment with a quick pipeline:
+```python
+import dlt
+
+@dlt.resource
+def hello():
+    yield {"id": 1, "msg": "Hello from dlt!"}
+
+pipeline = dlt.pipeline(pipeline_name="test", destination="filesystem", dataset_name="test")
+import os; os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "/tmp/dlt_test_output"
+info = pipeline.run(hello(), table_name="greetings")
+print(info)
+```
+This uses the filesystem destination (no DB needed). For duckdb: `destination="duckdb"` (requires the `duckdb` extra).
+
 ### Gotchas
-- dlt is a **library**, not a web app. There is no "server to start". Verify the environment by running `uv run python -c "import dlt; print(dlt.__version__)"` and then executing a small pipeline (e.g. the chess example from README).
+- dlt is a **library**, not a web app. There is no "server to start". Verify the environment by running `uv run python -c "import dlt; print(dlt.__version__)"` and then executing a small pipeline as above.
 - Python 3.12 is fine for development. The project supports 3.9–3.14 but the venv uses whatever Python uv finds.
 - Docker containers are **optional** unless you're testing specific destinations (postgres, clickhouse, weaviate, etc.). `make test-common` and `make test-load-local` (duckdb + filesystem) need no containers.
 - The `uv.lock` file pins all dependency versions. After changing `pyproject.toml`, run `uv lock` to update it.
+- C-extension dependencies (`orjson`, `pendulum`, `duckdb`) require pre-built wheels from PyPI. They cannot be installed from GitHub source alone.
