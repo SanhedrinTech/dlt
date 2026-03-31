@@ -74,6 +74,18 @@ uv run lint-embedded-snippets full -v
 #### Snippet numbers
 Each snippet will be assigned an index in the order it is encountered. This is useful during creation of new snippets in the docs to selectively only run a few snippets. These numbers will change as snippets are inserted into the docs.
 
+### Vale prose linter
+
+[Vale](https://vale.sh/) is configured via trunk to check documentation for typos, repeated words, and other style issues. It uses a custom 676-term dlt vocabulary and the built-in Vale style at maximum strictness (`MinAlertLevel = suggestion`).
+
+To run Vale on the docs:
+
+```sh
+trunk check --filter=vale docs/website/docs/
+```
+
+Additional style packages (Google, Microsoft, write-good, proselint, alex, Readability, Joblint, RedHat, Openly, ai-tells, 18F) are committed in `.trunk/configs/styles/` and can be enabled by editing `BasedOnStyles` in `.trunk/configs/.vale.ini`.
+
 ### `uv run fix-grammar`
 Runs all (or selected) docs markdown files through the OpenAI API to correct grammar. You will need to place the OpenAI key in an `.env` file in this or the root folder. We pay for each OpenAI API call, so be a bit considerate of your usage :). It is good to check the grammar on new pages.
 
