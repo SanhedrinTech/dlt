@@ -11,9 +11,11 @@ Run tip:
 - opentelemetry-exporter-otlp-proto-grpc: required for Dagger observability/tracing
 
 Flow:
-1. Collect docs markdown files changed on the current branch.
-2. Build and optionally run a headless `claude -p` command.
-3. Print Claude JSON output (or dry-run payload).
+1. Identify all markdown documentation files modified on the current branch.
+2. Construct and execute a Claude command to review these changes.
+3. Output the review results as JSON or the dry-run payload.
+
+Uses this skill: `/write-and-clean-docs`
 
 Default mode executes Claude; use `--dry-run` to skip execution.
 """
