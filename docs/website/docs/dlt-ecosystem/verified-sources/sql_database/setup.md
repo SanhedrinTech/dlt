@@ -1,5 +1,5 @@
 ---
-title: Setup
+title: SQL database setup
 description: basic steps for setting up a dlt pipeline for SQL Database
 keywords: [sql connector, sql database pipeline, sql database]
 ---

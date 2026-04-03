@@ -1,5 +1,5 @@
 ---
-title: Installation
+title: Install dltHub
 description: Installation information for the dlthub package
 ---
 
