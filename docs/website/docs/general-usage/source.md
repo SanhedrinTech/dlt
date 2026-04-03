@@ -141,6 +141,48 @@ password="..."
 ```
 The full path `sources.my_db.my_db.credentials` is also supported and takes precedence if both are present. See [how dlt looks for values](credentials/setup.md#how-dlt-looks-for-values) for details.
 
+### Apply postprocessors to source instances
+
+You can register postprocessor callbacks on a source factory. A postprocessor is a function that
+receives a `DltSource` after it is created and returns a modified `DltSource`. Postprocessors run
+automatically every time the source is instantiated, so you can use them to apply consistent
+modifications without changing the source function itself.
+
+```py
+import dlt
+
+@dlt.source
+def my_api():
+    return dlt.resource([1, 2, 3], name="users"), dlt.resource([4, 5], name="orders")
+
+# register a postprocessor that selects only the "users" resource
+my_api.add_postprocessor(lambda source: source.with_resources("users"))
+
+# every call to my_api() now returns a source with only "users" selected
+source = my_api()
+pipeline.run(source)
+```
+
+You can register multiple postprocessors. They execute in the order they were added:
+
+```py
+my_api.add_postprocessor(lambda s: s.with_resources("users"))
+my_api.add_postprocessor(lambda s: s.add_limit(100))
+```
+
+Postprocessors are preserved when you clone a source factory:
+
+```py
+# cloned_api keeps all postprocessors registered on my_api
+cloned_api = my_api.clone(name="cloned", section="cloned")
+```
+
+:::tip
+Use postprocessors when you want to enforce standard behavior across all instances of a source — for
+example, to always select certain resources, apply filters, or set limits. For one-off modifications,
+apply changes directly on the source instance instead.
+:::
+
 ### Add more resources to existing source
 
 You can add a custom resource to a source after it was created. Imagine that you want to score all the deals with a keras model that will tell you if the deal is a fraud or not. In order to do that, you declare a new [transformer that takes the data from](resource.md#process-resources-with-dlttransformer) `deals` resource and add it to the source.
