@@ -31,7 +31,7 @@ Creates, adds, inspects and deploys dlt pipelines. Further help is available at 
 ```sh
 dlt [-h] [--version] [--disable-telemetry] [--enable-telemetry]
     [--non-interactive] [--debug] [--no-pwd]
-    {workspace,telemetry,schema,profile,pipeline,init,render-docs,deploy,dashboard,ai,license,runtime}
+    {workspace,telemetry,schema,profile,pipeline,init,deploy,dashboard,ai,license,runtime}
     ...
 ```
 
@@ -411,7 +411,7 @@ dlt runtime [-h]
 
 **Description**
 
-Allows to connect to the dltHub Runtime, deploy and run local workspaces there. Requires dltHub license.
+Allows you to connect to the dltHub Runtime, deploy and run local workspaces there. Requires dltHub license.
 
 <details>
 
@@ -719,7 +719,7 @@ dlt runtime info [-h]
 
 **Description**
 
-Show workspace id and summary of deployments, configurations and jobs.
+Show workspace ID and summary of deployments, configurations and jobs.
 
 <details>
 
@@ -1471,4 +1471,3 @@ Inherits arguments from [`dlt runtime configuration`](#dlt-runtime-configuration
 * `-h, --help` - Show this help message and exit
 
 </details>
-
