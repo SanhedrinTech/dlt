@@ -1,5 +1,5 @@
 ---
-title: Delta
+title: Delta table format
 description: The Delta table format
 keywords: [delta, table formats]
 ---

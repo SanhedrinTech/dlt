@@ -1,5 +1,5 @@
 ---
-title: Iceberg
+title: Iceberg table format
 description: The Iceberg table format
 keywords: [iceberg, table formats]
 ---

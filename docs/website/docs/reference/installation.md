@@ -1,5 +1,5 @@
 ---
-title: Installation
+title: Install dlt
 description: How to install dlt
 keywords: [installation, environment, pip install]
 ---
