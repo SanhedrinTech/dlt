@@ -38,7 +38,6 @@ const sidebars = {
       items: [
         'reference/installation',
         "dlt-ecosystem/llm-tooling/llm-native-workflow",
-        "dlt-ecosystem/llm-tooling/explore-and-transform",
         'tutorial/rest-api',
         'tutorial/sql-database',
         'tutorial/filesystem',
@@ -56,6 +55,8 @@ const sidebars = {
             'tutorial/advanced-course',
           ]
         },
+        'walkthroughs/create-a-pipeline',
+        'walkthroughs/run-a-pipeline',
       ]
     },
     {
@@ -222,7 +223,6 @@ const sidebars = {
         'dlt-ecosystem/destinations/synapse',
         'dlt-ecosystem/destinations/clickhouse',
         'dlt-ecosystem/destinations/filesystem',
-        'dlt-ecosystem/destinations/huggingface',
         'dlt-ecosystem/destinations/delta-iceberg',
         'dlt-ecosystem/destinations/iceberg',
         'dlt-ecosystem/destinations/postgres',
@@ -244,42 +244,15 @@ const sidebars = {
     },
     {
       type: 'category',
-      label: 'Using dlt',
+      label: 'Guides',
       link: {
         type: 'generated-index',
-        title: 'Using dlt',
+        title: 'Guides',
+        description: 'Practical guides for configuring, loading, accessing, and transforming data with dlt.',
         slug: 'general-usage',
-        keywords: ['concepts', 'usage'],
+        keywords: ['guides', 'usage', 'how-to'],
       },
       items: [
-        'walkthroughs/create-a-pipeline',
-        'walkthroughs/run-a-pipeline',
-        /*{
-          type: "category",
-          label: "Build with LLMs",
-          link: {
-            type: 'generated-index',
-            title: 'Build with LLMs',
-            description: 'Learn to build dlt pipelines with LLMs',
-            slug: 'dlt-ecosystem/llm-tooling',
-          },
-          items: [
-            "dlt-ecosystem/llm-tooling/llm-native-workflow",
-          ]
-        },*/
-        {
-          type: 'category',
-          label: 'Load data incrementally',
-          items: [
-            'general-usage/full-loading',
-            'general-usage/merge-loading',
-            'general-usage/incremental-loading',
-            'general-usage/incremental/cursor',
-            'general-usage/incremental/lag',
-            'general-usage/incremental/advanced-state',
-            'general-usage/incremental/troubleshooting',
-          ]
-        },
         {
           type: 'category',
           label: 'Configure pipelines and credentials',
@@ -296,8 +269,20 @@ const sidebars = {
             'walkthroughs/add_credentials'
           ]
         },
+        {
+          type: 'category',
+          label: 'Load data incrementally',
+          items: [
+            'general-usage/full-loading',
+            'general-usage/merge-loading',
+            'general-usage/incremental-loading',
+            'general-usage/incremental/cursor',
+            'general-usage/incremental/lag',
+            'general-usage/incremental/advanced-state',
+            'general-usage/incremental/troubleshooting',
+          ]
+        },
         'walkthroughs/adjust-a-schema',
-        'general-usage/dashboard',
         {
           type: 'category',
           label: 'Access loaded data',
@@ -312,6 +297,7 @@ const sidebars = {
             'general-usage/dataset-access/sql-client',
             'general-usage/dataset-access/view-dlt-schema',
             'general-usage/destination-tables',
+            'general-usage/dataset-access/streamlit',
           ]
         },
         {
@@ -344,6 +330,7 @@ const sidebars = {
             }
           ]
         },
+        'general-usage/dashboard',
         'general-usage/data-quality-lifecycle',
       ]
     },
@@ -582,7 +569,6 @@ const sidebars = {
 for (const item of sidebars.docsSidebar) {
     if (item.label === 'Code examples') {
       for (let examplePath of walkSync("./docs_processed/examples")) {
-        examplePath = examplePath.replace(/\\/g, "/");
         examplePath = examplePath.replace("docs_processed/", "");
         examplePath = examplePath.replace(".mdx", "");
         examplePath = examplePath.replace(".md", "");
