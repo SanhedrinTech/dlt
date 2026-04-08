@@ -288,7 +288,7 @@ In this example, enabling `my_facebook_ads.root_key = True` and running the pipe
 If you have defined your own source with the `@dlt.source` decorator, you can also enable `root key` propagation by adding `@dlt.source(root_key=True)`.
 
 #### Disable root key propagation
-If your source generates single level of nested table (nested tables do not have nested tables) i.e. with `max_table_nesting=1` you can disable root key propagation
+If your source generates single level of nested table (nested tables do not have nested tables) ie. with `max_table_nesting=1` you can disable root key propagation
 by setting `root_key` to `False` on the source level. In that case `dlt` will use `parent_key` which is identical to `root_key` for level 1 nested tables. Note that currently you cannot disable propagation on the resource level.
 
 :::tip
@@ -688,27 +688,43 @@ def my_upsert_resource():
 
 ## `insert-only` strategy
 
-The `insert-only` merge strategy is supported for all destinations that support `upsert` (see [above](#upsert-strategy)), including `filesystem` with `delta` and `iceberg` table formats and `lancedb`.
+:::warning
+The `insert-only` merge strategy is currently supported for these destinations:
+- `athena` (with `iceberg` table format)
+- `bigquery`
+- `databricks`
+- `duckdb` (requires DuckDB 1.4.0 or higher)
+- `ducklake`
+- `filesystem` with `delta` or `iceberg` table format
+- `lancedb`
+- `mssql`
+- `postgres`
+- `snowflake`
+:::
 
-The `insert-only` merge strategy does primary-key based *inserts* without updating existing records:
-- *insert* a record if the key does not exist in the target table
-- *skip* a record if the key already exists in the target table (no update happens)
+The `insert-only` merge strategy inserts new records while leaving existing records untouched. If a record with the same primary key already exists in the destination, it is skipped — no update, no error. This is useful when you want idempotent loads that preserve the original ingestion metadata (such as `_dlt_load_id`) for records that were already loaded.
 
-This strategy is ideal for append-only data (events, logs, transactions) where existing records should never be modified. Re-running a pipeline only adds missing records, providing idempotent loads with better performance than `upsert` by skipping `UPDATE` operations entirely.
-
-You can use the `hard_delete` hint to filter out records marked for deletion before insertion. Unlike `upsert`, existing records in the target are never deleted — the hint only prevents new deleted records from being inserted.
+Typical use cases:
+- **Idempotent append**: Load the same batch multiple times without creating duplicates.
+- **Preserve ingestion metadata**: Keep the original `_dlt_load_id` and `_dlt_id` for records that already exist.
+- **Event deduplication**: Insert events by a unique event ID, ignoring events that were already loaded.
 
 ### `insert-only` versus `upsert`
 
-Unlike the `upsert` strategy, the `insert-only` strategy:
-1. **does not update** existing records
-2. provides better **performance** by skipping `UPDATE` operations
+Unlike the `upsert` strategy, `insert-only`:
+1. does **not** update existing records — they remain unchanged
+2. uses `MERGE ... WHEN NOT MATCHED THEN INSERT` (or equivalent) without any `WHEN MATCHED` clause
+3. preserves the original `_dlt_load_id` for previously loaded records
 
-Like `upsert`, the `insert-only` strategy:
-1. needs a `primary_key`
-2. expects this `primary_key` to be unique
-3. does not support `merge_key`
-4. generates deterministic `_dlt_id` based on primary key
+Both strategies share these characteristics:
+1. require a `primary_key`
+2. expect `primary_key` values to be unique in the source data (`dlt` does not deduplicate)
+3. do not support `merge_key`
+4. generate deterministic `_dlt_id` values based on the primary key
+
+### Delete handling with `insert-only`
+
+You can use the `hard_delete` hint with `insert-only`, but it behaves differently than with other strategies. Records marked for deletion are **filtered out before insertion** — they are never inserted into the destination. However, existing records in the destination are **not** deleted. This means `hard_delete` acts as an insert-time filter, not a retroactive delete.
 
 ### Example: `insert-only` merge strategy
 ```py
@@ -716,7 +732,11 @@ Like `upsert`, the `insert-only` strategy:
     write_disposition={"disposition": "merge", "strategy": "insert-only"},
     primary_key="event_id"
 )
-def my_insert_only_resource():
-    ...
-...
+def my_events():
+    yield [
+        {"event_id": 1, "status": "open"},
+        {"event_id": 2, "status": "closed"},
+    ]
 ```
+
+Running this resource multiple times inserts each event only once. Subsequent runs with the same `event_id` values skip those records, preserving the original data in the destination.
