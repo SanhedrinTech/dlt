@@ -38,10 +38,10 @@ const sidebars = {
       items: [
         'reference/installation',
         "dlt-ecosystem/llm-tooling/llm-native-workflow",
-        "dlt-ecosystem/llm-tooling/explore-and-transform",
         'tutorial/rest-api',
         'tutorial/sql-database',
         'tutorial/filesystem',
+        'tutorial/rag-pipeline',
         'tutorial/load-data-from-an-api',
         'tutorial/playground',
         {
@@ -222,7 +222,6 @@ const sidebars = {
         'dlt-ecosystem/destinations/synapse',
         'dlt-ecosystem/destinations/clickhouse',
         'dlt-ecosystem/destinations/filesystem',
-        'dlt-ecosystem/destinations/huggingface',
         'dlt-ecosystem/destinations/delta-iceberg',
         'dlt-ecosystem/destinations/iceberg',
         'dlt-ecosystem/destinations/postgres',
@@ -312,6 +311,7 @@ const sidebars = {
             'general-usage/dataset-access/sql-client',
             'general-usage/dataset-access/view-dlt-schema',
             'general-usage/destination-tables',
+            'general-usage/dataset-access/streamlit',
           ]
         },
         {
@@ -582,7 +582,6 @@ const sidebars = {
 for (const item of sidebars.docsSidebar) {
     if (item.label === 'Code examples') {
       for (let examplePath of walkSync("./docs_processed/examples")) {
-        examplePath = examplePath.replace(/\\/g, "/");
         examplePath = examplePath.replace("docs_processed/", "");
         examplePath = examplePath.replace(".mdx", "");
         examplePath = examplePath.replace(".md", "");
