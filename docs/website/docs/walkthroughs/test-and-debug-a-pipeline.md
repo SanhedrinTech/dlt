@@ -10,12 +10,19 @@ This guide shows you how to test dlt pipelines during development and debug issu
 
 ## Prerequisites
 
-- A working [dlt installation](../reference/installation.md)
-- A pipeline script (see [create a pipeline](create-a-pipeline.md) if you need one)
+Install dlt with DuckDB support:
+
+```sh
+pip install "dlt[duckdb]"
+```
+
+You also need a pipeline script to test. See [create a pipeline](create-a-pipeline.md) for a full walkthrough, or use the examples below as-is.
 
 ## 1. Test locally with DuckDB
 
-DuckDB runs in-process and requires no credentials, making it the fastest way to test a pipeline. Set `dev_mode=True` so dlt creates a fresh pipeline state on every run, preventing leftover data from interfering with your tests.
+DuckDB runs in-process and requires no credentials, making it the fastest way to test a pipeline. The following snippet defines a pipeline targeting DuckDB, loads sample data, and prints the results.
+
+Set `dev_mode=True` so dlt creates a fresh pipeline state on every run, preventing leftover data from interfering with your tests.
 
 ```py
 import dlt
@@ -41,6 +48,8 @@ Use `dev_mode=True` only during development. It wipes pipeline state on every ru
 
 The `load_info` object returned by `pipeline.run()` tells you exactly what happened during loading. Check it after every run.
 
+By default, `pipeline.run()` raises an exception when a load job fails, so you do not need to check for failures manually in most cases. If you set `raise_on_failed_jobs=False` in your load configuration, you can inspect failures programmatically:
+
 ```py
 import dlt
 
@@ -56,19 +65,19 @@ load_info = pipeline.run(
     table_name="people",
 )
 
-# check for failed jobs
+# print a summary of the load
+print(load_info)
+
+# print timing
+print(f"Started: {load_info.started_at}")
+print(f"Finished: {load_info.finished_at}")
+
+# if raise_on_failed_jobs is disabled, check manually
 if load_info.has_failed_jobs:
     for package in load_info.load_packages:
         for job in package.jobs.get("failed_jobs", []):
             print(f"Failed job: {job.job_file_info}")
             print(f"Error: {job.failed_message}")
-
-# raise an exception if any jobs failed
-load_info.raise_on_failed_jobs()
-
-# print timing
-print(f"Started: {load_info.started_at}")
-print(f"Finished: {load_info.finished_at}")
 ```
 
 ## 3. Verify loaded data
@@ -94,7 +103,7 @@ load_info = pipeline.run(
 print(pipeline.dataset().row_counts())
 
 # read all rows from a specific table
-rows = pipeline.dataset().people.fetchall()
+rows = pipeline.dataset().table("people").fetchall()
 print(rows)
 ```
 
@@ -102,7 +111,9 @@ For more ways to access loaded data, see [access loaded data](../general-usage/d
 
 ## 4. Check schema changes
 
-When dlt loads data, it may create or modify tables and columns. Inspect `schema_update` in each load package to see what changed.
+Every pipeline has a `default_schema` that dlt builds automatically as it processes your data. You can access it through `pipeline.default_schema` to see all tables, columns, and data types that dlt inferred.
+
+When dlt loads data, it may create or modify tables and columns. Inspect `schema_update` in each load package to see what changed during a specific load:
 
 ```py
 import dlt
@@ -126,15 +137,23 @@ for package in load_info.load_packages:
             print(f"  {column_name}: {column['data_type']}")
 ```
 
-You can also export the full schema as YAML for review:
+Export the full schema as YAML for review:
 
 ```py
-print(pipeline.default_schema.to_pretty_yaml())
+# access the full schema object
+schema = pipeline.default_schema
+
+# export as human-readable YAML
+print(schema.to_pretty_yaml())
 ```
 
 ## 5. Read the pipeline trace
 
-The trace records timing and configuration details for each pipeline step (extract, normalize, load). Access it through `pipeline.last_trace`.
+The trace records timing and configuration details for each pipeline step (extract, normalize, load). Access it through `pipeline.last_trace`, which reads from a trace file stored in your pipeline's working directory (`~/.dlt/pipelines/<name>/trace.pickle`).
+
+:::note
+`pipeline.last_trace` loads the trace from disk. It reflects the most recent run recorded in that directory, not necessarily a run from the current Python session. If the pipeline has never been run, it returns `None`.
+:::
 
 ```py
 import dlt
