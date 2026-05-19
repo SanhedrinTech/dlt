@@ -43,7 +43,7 @@ Try it out in the [Colab demo](https://colab.research.google.com/drive/1NfSB1Dpw
 
 ## Features
 
-dlt provides lightweight Python interfaces to extract, load, inspect, and transform data. dlt and dlt docs are built from the ground up to be used with LLMs: the [LLM-native workflow](./dlt-ecosystem/llm-tooling/llm-native-workflow.md) will take your pipeline code to data in a notebook for over [5000 sources](https://dlthub.com/workspace).
+dlt provides lightweight Python interfaces to extract, load, inspect, and transform data. dlt and dlt docs work natively with LLMs: the [LLM-native workflow](./dlt-ecosystem/llm-tooling/llm-native-workflow.md) takes your pipeline code to data in a notebook for over [5000 sources](https://dlthub.com/workspace).
 
 ### Extract from anything
 
@@ -75,7 +75,7 @@ The [`@dlt.destination`](./dlt-ecosystem/destinations/destination) decorator let
 ### Schema inference, normalization, and evolution
 
 - dlt infers [schemas](./general-usage/schema.md) and [data types](./general-usage/schema.md#data-types) from Python dicts, DataFrames, and Parquet files.
-- [Nested JSON is normalized](./general-usage/schema.md#data-normalizer) into relational child tables with consistent naming.
+- dlt [normalizes nested JSON](./general-usage/schema.md#data-normalizer) into relational child tables with consistent naming.
 - [Schema evolution](./general-usage/schema-evolution.md) handles `ALTER TABLE` on the fly, and [schema contracts](./general-usage/schema-contracts.md) let you freeze or discard unexpected columns.
 
 ### Automate pipeline maintenance
@@ -153,7 +153,7 @@ Check results are Relations — load them back into the warehouse to trend pass 
 ### Inspect, deploy, and visualize
 
 - dlt supports [Python and SQL data access](./general-usage/dataset-access/), [pipeline inspection](./general-usage/dashboard.md), and [visualizing data in Marimo Notebooks](./general-usage/dataset-access/marimo).
-- dlt can be deployed anywhere Python runs, be it on [Airflow](./walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer), [serverless functions](./walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions), or any other cloud deployment of your choice.
+- Deploy dlt anywhere Python runs, including [Airflow](./walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer), [serverless functions](./walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions), or any other cloud platform.
 
 ## Examples
 
