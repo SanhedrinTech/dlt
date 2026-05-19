@@ -418,6 +418,18 @@ dlt is a library, not a platform. There is no proprietary runtime to lock into a
 
 See the full list in the [deploy guide](./walkthroughs/deploy-a-pipeline/).
 
+## dltHub Pro
+
+For teams that want managed scheduling, observability, and deployment on top of dlt's open-source building blocks, [dltHub Pro](https://dlthub.com/docs/hub/introduction) provides a production runtime with agent-facing toolkits. It pairs the pipelines you build locally with managed infrastructure — secrets management, OTEL telemetry, transform-aware triggers, and a deployment agent — so the path from laptop to production is one command:
+
+```sh
+uvx dlthub-start
+```
+
+Pro also unlocks source-available features including dltHub transformations, the Iceberg destination, and MS SQL Change Tracking. Over 10,000 companies run dlt in production today; Pro is built for the smallest team that can run an end-to-end data stack.
+
+See the [dltHub Pro docs](./hub/introduction) or sign up at [app.dlthub.com](https://app.dlthub.com).
+
 ## Examples
 
 Find examples for various use cases in the [code examples section](../examples/).
