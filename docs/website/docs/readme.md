@@ -1,7 +1,7 @@
 ---
 title: README
 description: dlt overview — extract, load, transform, and validate data with Python
-keywords: [dlt, readme, overview, features, data loading, python]
+keywords: [dlt, readme, overview, features, data loading, python, etl, data pipeline]
 ---
 
 # data load tool (dlt)
@@ -16,47 +16,233 @@ dlt supports Python 3.9 through Python 3.14.
 pip install dlt
 ```
 
-## Quick start
+Try it out in the [Colab demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing) or directly in the [playground](./tutorial/playground).
 
-Load chess game data from the chess.com API and save it in DuckDB:
+## Extract from anything
+
+### REST APIs — declarative and strongly typed
+
+Define the API endpoints, pagination, and auth. dlt handles the rest:
+
+```py
+from dlt.sources.rest_api import rest_api_source
+
+luma = rest_api_source({
+    "client": {
+        "base_url": "https://api.lu.ma/public/v1",
+        "paginator": {"type": "cursor", "cursor_path": "next_cursor"},
+    },
+    "resources": [
+        {
+            "name": "guests",
+            "endpoint": {
+                "path": "event/get-guests",
+            },
+        },
+        {
+            "name": "events",
+            "endpoint": {
+                "path": "event/get",
+            },
+        },
+    ],
+})
+```
+
+Typed, declarative primitives combined with [dlt context](https://dlthub.com/workspace) enable one-shot pipelines with LLMs.
+
+### Filter, map, and flatten at the source
+
+Chain `filter` and `map` processing steps to drop noise and reshape records before they reach the warehouse:
+
+```py
+from dlt.sources.rest_api import rest_api_source
+
+luma = rest_api_source({
+    "client": {
+        "base_url": "https://api.lu.ma/public/v1",
+    },
+    "resources": [
+        {
+            "name": "guests",
+            "endpoint": {
+                "path": "event/get-guests",
+            },
+            "processing_steps": [
+                {"filter": lambda r: r["approval_status"] == "approved"},
+                {"map": flatten_guest},
+            ],
+        },
+    ],
+})
+```
+
+Use pure Python functions to clean data. The declarative representation makes it straightforward to track how things change over time:
+
+```py
+from typing import Any
+from datetime import datetime
+
+def flatten_guest(record: dict[str, Any]) -> dict[str, Any]:
+    guest = record.pop("guest", {})
+    email = (guest.get("email") or "").lower()
+    return {
+        **record,
+        **guest,
+        "email": email,
+        "email_domain": email.rsplit("@", 1)[-1] if "@" in email else None,
+        "registered_at": datetime.fromisoformat(record["registered_at"]),
+        "is_checked_in": bool(record.get("checked_in_at")),
+    }
+```
+
+### `@dlt.resource` — the smallest unit
+
+A resource is any iterable of records. Yield a list of dicts — dlt infers the schema, types the columns, and writes the table:
 
 ```py
 import dlt
-from dlt.sources.helpers import requests
 
-pipeline = dlt.pipeline(
-    pipeline_name='chess_pipeline',
-    destination='duckdb',
-    dataset_name='player_data'
-)
-
-data = []
-for player in ['magnuscarlsen', 'rpragchess']:
-    response = requests.get(f'https://api.chess.com/pub/player/{player}')
-    response.raise_for_status()
-    data.append(response.json())
-
-pipeline.run(data, table_name='player')
+@dlt.resource
+def events():
+    yield [
+        {
+            "one": {
+                "two": {"three": "value"}
+            }
+        }
+    ]
 ```
 
-Try it out in the [Colab demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing) or directly in the [playground](./tutorial/playground).
+When the declarative REST API source is not enough, drop into plain Python. Build a `RESTClient` once, share it across every resource, and each body collapses to a single `yield from`.
 
-## Features
+### `@dlt.source` — grouping resources
 
-dlt provides lightweight Python interfaces to extract, load, inspect, and transform data. dlt and dlt docs work natively with LLMs: the [LLM-native workflow](./dlt-ecosystem/llm-tooling/llm-native-workflow.md) takes your pipeline code to data in a notebook for over [5000 sources](https://dlthub.com/workspace).
+A source is a function that returns one or more resources. Think of it as the integration (Luma, Stripe, GitHub), while a resource is a stream of records inside it (events, guests). One source produces one schema with many tables:
 
-### Extract from anything
+```py
+@dlt.resource(primary_key="api_id")
+def events():
+    yield ...
 
-- **[REST APIs](./tutorial/rest-api)** — declarative, strongly typed configuration with built-in pagination, auth, and [processing steps](./general-usage/resource.md#filter-transform-and-pivot-data) (`filter`, `map`) to reshape records before they reach the warehouse.
-- **[SQL databases](./tutorial/sql-database)** — replicate tables with one line of config.
-- **[Cloud storage](./tutorial/filesystem)** — load CSV, JSONL, and Parquet files from S3, GCS, Azure, R2, or local disk. Chain `filesystem()` with a reader and `pipeline.run()` in one pipe.
-- **[DataFrames](./dlt-ecosystem/verified-sources/arrow-pandas.md)** — pass Pandas, Polars, or Arrow tables directly. dlt infers the schema from dtypes and moves Arrow-backed frames with zero copies.
-- **[Python data structures](./tutorial/load-data-from-an-api)** — yield lists of dicts from a `@dlt.resource` and dlt infers the schema, types columns, and writes the table.
-- **[And many more](./dlt-ecosystem/verified-sources)** verified sources.
+@dlt.resource
+def guests():
+    yield ...
 
-### Load into 20+ destinations
+@dlt.source
+def luma_source():
+    return guests(), events()
+```
 
-dlt supports [20+ destinations](./dlt-ecosystem/destinations/) including DuckDB, Snowflake, BigQuery, Iceberg, and filesystem (S3, GCS, Azure, R2). Same resource, swap the destination string:
+```py
+dlt.pipeline().run(
+    luma_source()
+)
+```
+
+Use closures to share a client, auth, and base URL across resources. Secrets resolve at runtime with `dlt.secrets.value` from TOML, env vars, or vaults across dev/staging/prod profiles:
+
+```py
+@dlt.source
+def luma_source(api_key=dlt.secrets.value):
+    client = RESTClient(
+        base_url="...",
+    )
+
+    @dlt.resource
+    def events():
+        yield from client.paginate("events")
+
+    @dlt.resource
+    def guests():
+        yield from client.paginate("guests")
+
+    return [events, guests]
+```
+
+### Decorator knobs
+
+Declare identity, load behavior, schema, and incremental loading directly on the decorator. Every setting can be overridden at runtime via `pipeline.run()` or `config.toml`:
+
+```py
+@dlt.resource(
+    # ── IDENTITY ─────────────────────────────────
+    name="guests",
+    primary_key="api_id",
+    merge_key=("event_id", "api_id"),
+    table_name=lambda row: f"guests_{row['type']}",   # dynamic routing
+
+    # ── LOAD BEHAVIOR ────────────────────────────
+    write_disposition="merge",
+    file_format="parquet",
+    parallelized=True,
+
+    # ── SCHEMA ───────────────────────────────────
+    columns={"email": {"x-annotation-pii": True}},
+    schema_contract={"columns": "freeze"},
+)
+def guests(
+    # ── INCREMENTAL ──────────────────────────────
+    updated_at=dlt.sources.incremental("updated_at"),
+):
+    yield from fetch_guests(since=updated_at.last_value)
+```
+
+### DataFrames — Pandas, Polars, Arrow
+
+Load DataFrames directly. dlt infers the schema from dtypes, preserves timestamps, decimals, and nested types end-to-end, and moves Arrow-backed frames with zero copies:
+
+```py
+import dlt
+import pandas as pd
+
+df = pd.DataFrame({
+    "event":   ["dlt summit 2026", "DuckCon", "Iceberg Day"],
+    "signups": [1240, 860, 410],
+})
+
+dlt.pipeline(
+    pipeline_name="events",
+    destination="duckdb",
+    dataset_name="event_data",
+).run(
+    df,
+    table_name="top_events",
+)
+```
+
+Append, replace, or merge the same way you would any other resource.
+
+### Cloud storage and files — CSV, JSONL, Parquet
+
+Three-step flow — list files, parse them, load a table:
+
+```py
+from dlt.sources.filesystem import filesystem, read_csv_duckdb
+
+files = filesystem(
+    bucket_url="file://data",
+    file_glob="*.csv",
+)
+
+source = (
+    files | read_csv_duckdb()
+).with_name("guests")
+
+dlt.pipeline(
+    pipeline_name="files",
+    destination="duckdb",
+    dataset_name="file_data",
+).run(source)
+```
+
+1. **List** — `filesystem()` enumerates files (local, S3, GCS, Azure)
+2. **Parse** — `| read_csv_duckdb()` streams bytes into records
+3. **Load** — `pipeline.run()` writes one table, schema inferred
+
+## Load into 20+ destinations
+
+Same resource, swap the destination string. dlt handles credentials, DDL in the target dialect, type conversions, staging to S3/GCS for warehouses that need it, and schema drift with `ALTER TABLE` on the fly:
 
 ```py
 dlt.pipeline(
@@ -70,50 +256,133 @@ dlt.pipeline(
 )
 ```
 
+Supported destinations include DuckDB, Snowflake, BigQuery, Iceberg, Databricks, Postgres, Redshift, and [many more](./dlt-ecosystem/destinations/).
+
 The [`@dlt.destination`](./dlt-ecosystem/destinations/destination) decorator lets you build custom sinks for reverse ETL pipelines.
 
-### Schema inference, normalization, and evolution
+## What dlt gives you for free
 
-- dlt infers [schemas](./general-usage/schema.md) and [data types](./general-usage/schema.md#data-types) from Python dicts, DataFrames, and Parquet files.
-- dlt [normalizes nested JSON](./general-usage/schema.md#data-normalizer) into relational child tables with consistent naming.
-- [Schema evolution](./general-usage/schema-evolution.md) handles `ALTER TABLE` on the fly, and [schema contracts](./general-usage/schema-contracts.md) let you freeze or discard unexpected columns.
+- **Schema inference** — Python dicts, DataFrames, Parquet files become typed tables
+- **Normalization** — nested JSON flattens into child tables with consistent naming
+- **Incremental loading** — one decorator argument
+- **Secrets and config** — `dlt.secrets.value` / `dlt.config.value` injection
+- **Dataset API** — read back as pandas, Arrow, or Ibis
+- **Portability** — DuckDB, Snowflake, BigQuery, Iceberg, filesystem, R2
 
-### Automate pipeline maintenance
+No custom glue. No migrations. No "build a platform."
 
-- **[Incremental loading](./general-usage/incremental-loading.md)** — track state with one decorator argument (`dlt.sources.incremental`).
-- **Secrets and config** — `dlt.secrets.value` / `dlt.config.value` injection from TOML, env vars, or vaults across dev/staging/prod profiles.
-- **Decorator knobs** — declare `write_disposition`, `primary_key`, `merge_key`, `file_format`, `schema_contract`, and more on `@dlt.resource`. Override any setting at runtime.
+## Read your data back
+
+### `dlt.attach` — reconnect to a pipeline
+
+A pipeline is durable. `dlt.attach` reconnects to one by name — same schema, destination, and dataset you had at load time. No re-running, no re-ingesting:
 
 ```py
-@dlt.resource(
-    name="guests",
-    primary_key="api_id",
-    write_disposition="merge",
-    file_format="parquet",
-    schema_contract={"columns": "freeze"},
+import dlt
+
+pipeline = dlt.attach(
+    pipeline_name="fruitshop",
+    destination="fruitshop_destination",
+    dataset_name="fruitshop_data",
 )
-def guests(
-    updated_at=dlt.sources.incremental("updated_at"),
-):
-    yield from fetch_guests(since=updated_at.last_value)
+
+pipeline.destination.destination_type   # "duckdb", "snowflake", ...
+pipeline.dataset().tables               # tables in the loaded dataset
 ```
 
-### Read your data back — the Dataset API
+### The Dataset API
 
-Reconnect to any previously run pipeline with `dlt.attach` and access loaded tables as pandas, Arrow, or Ibis expressions:
+Every loaded table is reachable as `pipeline.dataset().<table>`. Pick the format that matches your tool:
 
 ```py
-pipeline = dlt.attach(pipeline_name="my_pipeline")
-table = pipeline.dataset().my_table
+inventory = pipeline.dataset().inventory
 
-table.df()           # pandas DataFrame
-table.arrow()        # pyarrow.Table — zero-copy into DuckDB / Polars
-table.to_ibis()      # lazy Ibis expression, compiles to the destination's SQL dialect
+inventory.arrow()        # pyarrow.Table — zero-copy into DuckDB / Polars
+inventory.df()           # pandas — notebooks, quick exploration
+inventory.to_ibis()      # Ibis expression — lazy, composable, compiles to SQL
 ```
 
-### Transform with Ibis
+The schema is introspectable — render relations straight from the loaded schema with no extra modeling layer.
 
-Use [`@dlt.hub.transformation`](./dlt-ecosystem/transformations/) to write parameterized, composable transformations in Python that execute as SQL on the warehouse:
+## Data quality — checks as data
+
+### Define checks
+
+Checks compile to a query against the dataset. `prepare_checks` returns a `dlt.Relation` — the check is SQL that runs where the data already lives. No extraction, no copies:
+
+```py
+import dlthub.data_quality as dq
+
+inventory_checks = [
+    dq.checks.is_in("name", ["apple", "pear", "cherry"]),
+    dq.checks.is_not_null("price"),
+    dq.checks.case("price < 0"),     # arbitrary SQL predicate, row-wise
+]
+
+results = dq.prepare_checks(
+    pipeline.dataset().inventory,
+    inventory_checks,
+    level="row",       # "row", "table", or "dataset"
+).arrow()
+```
+
+Levels let you choose the verdict's grain: `row` for one verdict per record, `table` for one per table, `dataset` for cross-table assertions.
+
+### `CheckSuite` — inspect successes and failures
+
+A `CheckSuite` bundles checks per table and runs them on the dataset. Inspect the rows behind each verdict:
+
+```py
+check_suite = dq.CheckSuite(
+    pipeline.dataset(),
+    checks={"inventory": inventory_checks},
+)
+
+check_suite.get_successes("inventory", "name__is_in").arrow()
+check_suite.get_failures("inventory",  "name__is_in").arrow()
+```
+
+Every method returns a Relation — call `.arrow()` or `.df()` when you want the data.
+
+### Persist check results
+
+Check results are Relations, so they load like any other resource. Trend pass rates, alert on regressions, and join quality results back against the rows they describe:
+
+```py
+pipeline.run(
+    [
+        dq.prepare_checks(
+            pipeline.dataset().inventory,
+            inventory_checks,
+            level="row",
+        ).arrow()
+    ],
+    table_name="dlt_data_quality",
+)
+```
+
+## Transformations
+
+### Ibis — Python in, SQL out
+
+`.to_ibis()` lifts a loaded table into an Ibis expression. Compose group-bys, joins, and window functions in Python. Nothing runs until you materialize with `.to_pyarrow()`, `.to_pandas()`, or `.to_polars()`. The compiler emits SQL in the destination's dialect and pushes the work down:
+
+```py
+customers = pipeline.dataset().customers.to_ibis()
+
+customer_cities = (
+    customers
+    .group_by("city")
+    .aggregate(number_of_customers=ibis._.id.count())
+)
+
+customer_cities                # the query plan (lazy)
+customer_cities.to_pyarrow()   # execute on the warehouse
+```
+
+### `@dlt.hub.transformation` — parameterized transforms
+
+Same decorator pattern — input is a `dlt.Dataset`, output yields Ibis tables that dlt materializes as resources. Test locally on DuckDB, ship to Snowflake unchanged:
 
 ```py
 @dlt.hub.transformation
@@ -129,35 +398,61 @@ def customer_payments(dataset: dlt.Dataset):
     )
 ```
 
-Transformations compose into sources — bundle them the same way you bundle ingest resources. Test locally on DuckDB, ship to Snowflake unchanged.
+### Compose transformations as a source
 
-### Data quality checks
-
-Validate loaded or transformed data with `dlthub.data_quality`. Checks compile to SQL and run where the data already lives — no extraction, no copies:
+A source bundles transformations the same way it bundles ingest resources. Raw data lands in DuckDB or Iceberg (wherever is cheap to land), and modeled marts get their own pipeline and destination:
 
 ```py
-import dlthub.data_quality as dq
+@dlt.source
+def customers_metrics(raw_dataset: dlt.Dataset):
+    return [
+        customer_payments(raw_dataset),
+        another_transformation(raw_dataset),
+    ]
 
-results = dq.prepare_checks(
-    pipeline.dataset().inventory,
-    [
-        dq.checks.is_not_null("price"),
-        dq.checks.is_in("name", ["apple", "pear", "cherry"]),
-    ],
-    level="row",       # "row", "table", or "dataset"
-).arrow()
+new_pipeline = dlt.pipeline(
+    "customer_metrics",
+    destination="snowflake",
+)
+
+new_pipeline.run(
+    customers_metrics(original_pipeline.dataset())
+)
 ```
 
-Check results are Relations — load them back into the warehouse to trend pass rates, alert on regressions, and join verdicts against source rows.
+Same primitives at every layer: `@dlt.resource`, `@dlt.source`, `@dlt.hub.transformation`.
 
-### Inspect, deploy, and visualize
+### Close the loop — quality on modeled data
 
-- dlt supports [Python and SQL data access](./general-usage/dataset-access/), [pipeline inspection](./general-usage/dashboard.md), and [visualizing data in Marimo Notebooks](./general-usage/dataset-access/marimo).
-- Deploy dlt anywhere Python runs, including [Airflow](./walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer), [serverless functions](./walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions), or any other cloud platform.
+The data quality API works on any dataset, whether the rows came from a REST API, a CSV, or an Ibis aggregation — it is all Relations:
+
+```py
+dq.prepare_checks(
+    customers_metrics(original_pipeline.dataset()),
+    [
+        dq.checks.case("number_of_orders > 20"),
+        dq.checks.is_not_null("customer_id"),
+    ],
+    level="dataset",
+).df()
+```
+
+Ingest, transform, validate — one mental model, one toolkit.
+
+## Deploy anywhere
+
+dlt can be deployed anywhere Python runs:
+
+- [Airflow](./walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer)
+- [Google Cloud Functions](./walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions)
+- [GitHub Actions](./walkthroughs/deploy-a-pipeline/deploy-with-github-actions)
+- [Dagster](./walkthroughs/deploy-a-pipeline/deploy-with-dagster)
+- [Modal](./walkthroughs/deploy-a-pipeline/deploy-with-modal)
+- Any other cloud platform of your choice
 
 ## Examples
 
-You can find examples for various use cases in the [code examples section](../examples/).
+Find examples for various use cases in the [code examples section](../examples/).
 
 ## Adding as a dependency
 
