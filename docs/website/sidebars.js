@@ -33,6 +33,7 @@ const sidebars = {
       label: 'Getting started',
       items: [
         { type: 'doc', id: 'intro', label: 'dlt' },
+        { type: 'doc', id: 'readme', label: 'README' },
         'reference/installation',
         {
           type: 'category',
